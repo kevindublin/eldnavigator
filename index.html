@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ELD Navigator</title>
+    
+    <meta name="theme-color" content="#121212">
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%2300e5ff'/><text y='70' x='15' font-family='monospace' font-size='70' font-weight='bold' fill='black'>E</text></svg>">
+
+    <style>
+        :root {
+            --bg: #121212;
+            --surface-1: #1e1e1e;
+            --surface-2: #252525;
+            --text-main: #e0e0e0;
+            --text-muted: #a0a0a0;
+            
+            /* Color Palette */
+            --cyan: #00e5ff;
+            --pink: #ff4081;
+            
+            /* Standard Border/Shadow */
+            --border-width: 2px;
+            --shadow-offset: 4px;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            /* Readability Update: Sans-serif for body text */
+            font-family: 'Segoe UI', Inter, system-ui, -apple-system, sans-serif;
+            background-color: var(--bg);
+            color: var(--text-main);
+            margin: 0;
+            padding: 0;
+            padding-bottom: 100px; /* Space for fixed footer */
+            line-height: 1.6;
+        }
+
+        /* Brutalist Identity: Monospace for structure */
+        h1, h2, h3, h4, button, select, .card-header, .label {
+            font-family: 'Courier New', Courier, monospace;
+            letter-spacing: -0.5px;
+        }
+
+        header {
+            border-bottom: var(--border-width) solid var(--cyan);
+            padding: 20px;
+            background: var(--surface-1);
+        }
+
+        h1 {
+            margin: 0;
+            text-transform: uppercase;
+            font-size: 1.5rem;
+            color: var(--cyan);
+        }
+
+        /* Controls */
+        .controls {
+            position: sticky;
+            top: 0;
+            background: var(--bg);
+            padding: 15px;
+            border-bottom: var(--border-width) solid var(--text-muted);
+            z-index: 100;
+            display: flex;
+            gap: 15px;
+        }
+
+        select {
+            width: 100%;
+            background: var(--surface-1);
+            color: var(--cyan);
+            border: var(--border-width) solid var(--cyan);
+            padding: 12px;
+            font-weight: bold;
+            font-size: 1rem;
+            box-shadow: var(--shadow-offset) var(--shadow-offset) 0px var(--cyan);
+            cursor: pointer;
+            outline: none;
+            border-radius: 0; /* Hard edges */
+            appearance: none;
+        }
+
+        /* Results Grid */
+        #results-area {
+            padding: 20px;
+            display: grid;
+            gap: 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: var(--surface-1);
+            border: var(--border-width) solid var(--cyan);
+            box-shadow: var(--shadow-offset) var(--shadow-offset) 0px var(--cyan);
+            transition: transform 0.2s;
+        }
+
+        /* Alternating Row Logic (Odd = Cyan, Even = Pink) */
+        .card:nth-child(even) {
+            background: var(--surface-2);
+            border-color: var(--pink);
+            box-shadow: var(--shadow-offset) var(--shadow-offset) 0px var(--pink);
+        }
+
+        .card:nth-child(even) .card-header {
+            background: var(--pink);
+            color: #fff; /* Better contrast on pink */
+        }
+        
+        .card:nth-child(even) .label.bridging {
+            color: var(--pink);
+        }
+
+        /* Card Internals */
+        .card-header {
+            background: var(--cyan);
+            color: #000;
+            padding: 12px 20px;
+            font-weight: bold;
+            font-size: 1.1rem;
+            border-bottom: inherit; /* Matches parent border color */
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .strand-meta {
+            font-size: 0.8rem;
+            background: rgba(0,0,0,0.2);
+            padding: 4px 8px;
+            border-radius: 0;
+        }
+
+        .proficiency-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+        }
+
+        @media (min-width: 768px) {
+            .proficiency-grid { 
+                grid-template-columns: 1fr 1fr 1fr; 
+            }
+            .col { 
+                border-right: 1px solid rgba(255,255,255,0.1); 
+            }
+            .col:last-child { border-right: none; }
+        }
+
+        .col {
+            padding: 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .col:last-child { border-bottom: none; }
+
+        .label {
+            display: inline-block;
+            background: #000;
+            color: #fff;
+            padding: 4px 8px;
+            font-size: 0.85rem;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+        }
+
+        .label.bridging { color: var(--cyan); }
+
+        /* Sidebar */
+        #sidebar {
+            position: fixed;
+            top: 0;
+            right: -100%;
+            width: 100%;
+            max-width: 450px;
+            height: 100%;
+            background: var(--bg);
+            border-left: var(--border-width) solid var(--text-main);
+            z-index: 1000;
+            transition: right 0.3s cubic-bezier(0, .52, 0, 1);
+            display: flex;
+            flex-direction: column;
+            box-shadow: -20px 0 50px rgba(0,0,0,0.8);
+        }
+
+        #sidebar.active { right: 0; }
+
+        .sidebar-header {
+            background: var(--text-main);
+            color: var(--bg);
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: bold;
+            font-size: 1.2rem;
+        }
+
+        .sidebar-content {
+            overflow-y: auto;
+            padding: 25px;
+            flex: 1;
+        }
+
+        .close-btn {
+            background: transparent;
+            border: none;
+            color: inherit;
+            font-size: 1.5rem;
+            padding: 0;
+            box-shadow: none;
+            width: auto;
+        }
+
+        /* Sidebar Content Styles */
+        .info-block { margin-bottom: 30px; }
+        .info-title { color: var(--cyan); font-size: 1.1rem; margin-bottom: 10px; border-bottom: 1px solid #333; padding-bottom: 5px; }
+        .info-text { font-size: 0.95rem; color: #ccc; }
+        
+        a.download-link {
+            display: block;
+            background: var(--surface-2);
+            color: var(--cyan);
+            text-decoration: none;
+            padding: 15px;
+            text-align: center;
+            border: 1px solid var(--cyan);
+            margin-top: 20px;
+            font-weight: bold;
+            font-family: 'Courier New', monospace;
+        }
+        
+        a.download-link:hover {
+            background: var(--cyan);
+            color: #000;
+        }
+
+        .credit {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #333;
+            font-size: 0.8rem;
+            color: #666;
+            text-align: center;
+        }
+        
+        .credit a { color: var(--pink); text-decoration: none; }
+
+        /* Bottom Nav - 3 Buttons */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background: var(--bg);
+            border-top: var(--border-width) solid var(--text-muted);
+            display: flex;
+            padding: 10px;
+            gap: 10px;
+            z-index: 90;
+        }
+
+        .nav-btn {
+            flex: 1; /* Equal sizing */
+            background: var(--surface-1);
+            color: var(--text-main);
+            border: 1px solid var(--text-muted);
+            padding: 15px 5px;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            box-shadow: 3px 3px 0px #000;
+        }
+
+        .nav-btn:active {
+            transform: translate(2px, 2px);
+            box-shadow: 1px 1px 0px #000;
+        }
+
+        /* Mobile tweaks */
+        @media (max-width: 600px) {
+            .controls { flex-direction: column; gap: 15px; }
+            h1 { font-size: 1.2rem; }
+        }
+
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>CA ELD Navigator</h1>
+    </header>
+
+    <div class="controls">
+        <select id="grade-select" aria-label="Select Grade">
+            <option value="">Select Grade</option>
+        </select>
+        <select id="part-select" aria-label="Select Part">
+            <option value="">Select Part</option>
+        </select>
+    </div>
+
+    <div id="results-area">
+        <div style="text-align:center; padding:60px 20px; opacity: 0.5; font-family: monospace;">
+            // WAITING FOR INPUT...<br>
+            // PLEASE SELECT PARAMETERS
+        </div>
+    </div>
+
+    <nav class="bottom-nav">
+        <button class="nav-btn" onclick="openSidebar('glossary')">📚 Glossary</button>
+        <button class="nav-btn" onclick="openSidebar('support')">🏗️ Support</button>
+        <button class="nav-btn" onclick="openSidebar('about')">ℹ️ About</button>
+    </nav>
+
+    <div id="sidebar">
+        <div class="sidebar-header">
+            <span id="sidebar-title">Menu</span>
+            <button class="close-btn" onclick="closeSidebar()">✕</button>
+        </div>
+        <div class="sidebar-content" id="sidebar-body">
+            </div>
+    </div>
+
+<script>
+    // ----------------------------------------------------
+    // 1. STATIC DATA
+    // ----------------------------------------------------
+    const glossaryData = [
+        { term: "Cohesion", def: "How information flows in a text using pronouns, synonyms, and transition words." },
+        { term: "Modality", def: "Degree of certainty/obligation (e.g., must, should, might)." },
+        { term: "Nominalization", def: "Turning actions into nouns (e.g., destroy -> destruction). Common in academic text." },
+        { term: "Register", def: "Changing vocabulary/grammar to fit a context (e.g., chatting vs. essay writing)." },
+        { term: "Scaffolding", def: "Temporary assistance enabling students to do tasks they couldn't do alone." },
+        { term: "Morphology", def: "Study of word parts (prefixes, suffixes, roots)." },
+        { term: "Clause", def: "A unit of meaning with a verb. Can be independent or dependent." }
+    ];
+
+    const supportData = [
+        { level: "Emerging", type: "Substantial Support", desc: "One-on-one assistance, sensory supports, sentence frames, L1 support." },
+        { level: "Expanding", type: "Moderate Support", desc: "Small groups, graphic organizers, sentence starters, peer collaboration." },
+        { level: "Bridging", type: "Light Support", desc: "Occasional prompting, peer feedback, self-correction checklists." }
+    ];
+
+    const aboutContent = `
+        <div class="info-block">
+            <div class="info-title">Definition of Standards</div>
+            <div class="info-text">The CA ELD Standards describe the key knowledge, skills, and abilities that students who are learning English as a new language need in order to access, engage with, and achieve in grade-level academic content.</div>
+        </div>
+        <div class="info-block">
+            <div class="info-title">Purposes & Intended Users</div>
+            <div class="info-text">These standards are designed to reflect expectations of what ELs should know, set clear developmental benchmarks, and provide teachers with a foundation for delivering rich instruction.</div>
+        </div>
+        <a href="https://www.cde.ca.gov/sp/ml/eldstandards.asp" target="_blank" class="download-link">
+            📥 Download Official PDF
+        </a>
+        <div class="credit">
+            Co-adapted for the web by <a href="https://kevindublin.com" target="_blank">Kevin Dublin</a> with <a href="https://gemini.google.com/" target= "_blank">Gemini</a> & vibes ✨
+        </div>
+    `;
+
+    let eldData = [];
+    let overviewData = []; // Store overview data here
+
+    // ----------------------------------------------------
+    // 2. INIT & STATE
+    // ----------------------------------------------------
+    
+    async function init() {
+        try {
+            // Fetch standards data
+            const responseStandards = await fetch('eld-data.json');
+            if (!responseStandards.ok) throw new Error("Ensure eld-data.json is in the folder");
+            eldData = await responseStandards.json();
+
+            // Fetch overview data
+            const responseOverviews = await fetch('eld-overviews.json');
+            if (!responseOverviews.ok) console.warn("eld-overviews.json not found, overviews will not load.");
+            else overviewData = await responseOverviews.json();
+            
+            populateControls();
+            restoreState();
+            
+            if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+        } catch (e) {
+            document.getElementById('results-area').innerHTML = 
+            `<p style="color:var(--pink); text-align:center; font-family:monospace;">ERROR: ${e.message}<br>Use a Local Server.</p>`;
+        }
+    }
+
+    function populateControls() {
+        const gradeSel = document.getElementById('grade-select');
+        const partSel = document.getElementById('part-select');
+
+        const grades = [...new Set(eldData.map(d => d.grade))].sort((a,b) => a.localeCompare(b, undefined, {numeric: true}));
+        const parts = [...new Set(eldData.map(d => d.part))];
+
+        grades.forEach(g => gradeSel.add(new Option(g, g)));
+        parts.forEach(p => partSel.add(new Option(p, p)));
+
+        const update = () => { saveState(); render(); };
+        gradeSel.addEventListener('change', update);
+        partSel.addEventListener('change', update);
+    }
+
+    function saveState() {
+        localStorage.setItem('eld_grade', document.getElementById('grade-select').value);
+        localStorage.setItem('eld_part', document.getElementById('part-select').value);
+    }
+
+    function restoreState() {
+        const savedGrade = localStorage.getItem('eld_grade');
+        const savedPart = localStorage.getItem('eld_part');
+        if (savedGrade) document.getElementById('grade-select').value = savedGrade;
+        if (savedPart) document.getElementById('part-select').value = savedPart;
+        if (savedGrade && savedPart) render();
+    }
+
+    // ----------------------------------------------------
+    // 3. RENDERING
+    // ----------------------------------------------------
+
+    function render() {
+        const grade = document.getElementById('grade-select').value;
+        const part = document.getElementById('part-select').value;
+        const area = document.getElementById('results-area');
+
+        if (!grade || !part) return;
+
+        area.innerHTML = '';
+
+        // 1. Render Overview Card (Only once per grade)
+        const overview = overviewData.find(o => o.grade === grade);
+        if (overview) {
+            const overviewCard = `
+                <div class="card" style="border-color: #fff;">
+                    <div class="card-header" style="background: #333; color: #fff;">
+                        <span>${grade} Overview</span>
+                    </div>
+                    <div style="padding: 20px;">
+                        <div style="margin-bottom: 20px;">
+                            <h4 style="color: var(--cyan); margin-top: 0;">GOAL</h4>
+                            <p style="font-size: 0.95rem;">${overview.goal}</p>
+                        </div>
+                        <div>
+                            <h4 style="color: var(--pink); margin-top: 0;">CRITICAL PRINCIPLES</h4>
+                            <p style="font-size: 0.95rem;">${overview.critical_principles}</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+            area.innerHTML += overviewCard;
+        }
+
+        // 2. Render Standards Cards
+        const filtered = eldData
+            .filter(d => d.grade === grade && d.part === part)
+            .sort((a,b) => a.number - b.number);
+
+        if (filtered.length === 0) {
+            area.innerHTML += "<p style='text-align:center; font-family:monospace; margin-top:20px;'>NO STANDARDS DATA FOUND FOR THIS SELECTION.</p>";
+            return;
+        }
+
+        area.innerHTML += filtered.map(std => `
+            <div class="card">
+                <div class="card-header">
+                    <span>${std.number}. ${std.title}</span>
+                    <span class="strand-meta">${std.mode}</span>
+                </div>
+                <div class="proficiency-grid">
+                    <div class="col">
+                        <span class="label">Emerging</span>
+                        <div>${std.emerging}</div>
+                    </div>
+                    <div class="col">
+                        <span class="label">Expanding</span>
+                        <div>${std.expanding}</div>
+                    </div>
+                    <div class="col">
+                        <span class="label bridging">Bridging</span>
+                        <div>${std.bridging}</div>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // ----------------------------------------------------
+    // 4. SIDEBAR LOGIC
+    // ----------------------------------------------------
+
+    function openSidebar(mode) {
+        const sidebar = document.getElementById('sidebar');
+        const title = document.getElementById('sidebar-title');
+        const body = document.getElementById('sidebar-body');
+
+        sidebar.classList.add('active');
+
+        if (mode === 'glossary') {
+            title.innerText = "📚 Glossary";
+            body.innerHTML = glossaryData.map(item => `
+                <div class="info-block">
+                    <div class="info-title" style="color:var(--pink)">${item.term}</div>
+                    <div class="info-text">${item.def}</div>
+                </div>
+            `).join('');
+        } else if (mode === 'support') {
+            title.innerText = "🏗️ Support Levels";
+            body.innerHTML = supportData.map(item => `
+                <div class="info-block">
+                    <div class="info-title" style="color:#fff">${item.level}</div>
+                    <div style="color:var(--cyan); font-size:0.9em; margin-bottom:5px; font-family:monospace;">${item.type}</div>
+                    <div class="info-text">${item.desc}</div>
+                </div>
+            `).join('');
+        } else if (mode === 'about') {
+            title.innerText = "ℹ️ About";
+            body.innerHTML = aboutContent;
+        }
+    }
+
+    function closeSidebar() {
+        document.getElementById('sidebar').classList.remove('active');
+    }
+
+    init();
+</script>
+</body>
+</html>
