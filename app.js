@@ -10,7 +10,7 @@ const glossaryData = [
     { term: "Nominalization", def: "Turning actions into nouns (e.g., destroy -> destruction). Common in academic text." },
     { term: "Register", def: "Changing vocabulary/grammar to fit a context (e.g., chatting vs. essay writing)." },
     { term: "Scaffolding", def: "Temporary assistance enabling students to do tasks they couldn't do alone." }
-].sort((a, b) => a.term.localeCompare(b.term)); // Alphabetize
+].sort((a, b) => a.term.localeCompare(b.term));
 
 const supportData = [
     { level: "Emerging", type: "Substantial Support", desc: "One-on-one assistance, sensory supports, sentence frames, L1 support." },
@@ -125,11 +125,14 @@ function render() {
         return;
     }
 
-    area.innerHTML += filtered.map(std => `
+    area.innerHTML += filtered.map((std, index) => `
         <div class="card">
             <div class="card-header">
-                <span>${std.number}. ${std.title}</span>
-                <span class="strand-meta">${std.mode}</span>
+                <div>
+                    <span>${std.number}. ${std.title}</span>
+                    <br><span class="strand-meta" style="font-size:0.7em; margin-top:5px; display:inline-block;">${std.mode}</span>
+                </div>
+                <button class="copy-btn" onclick="copyCard(${index}, this)" aria-label="Copy Standard to Clipboard">COPY</button>
             </div>
             <div class="ccss-box">
                 <span class="ccss-label">CORE ALIGNMENT (CCSS ELA)</span>
@@ -145,8 +148,80 @@ function render() {
 }
 
 // ----------------------------------------------------
-// 4. SIDEBAR LOGIC
+// 4. FEATURES (Copy & Sidebar)
 // ----------------------------------------------------
+
+// Accessibility Feature: "Easy Lift" Copy
+async function copyCard(index, btnElement) {
+    const grade = document.getElementById('grade-select').value;
+    const part = document.getElementById('part-select').value;
+    
+    const filtered = eldData
+        .filter(d => d.grade === grade && d.part === part)
+        .sort((a,b) => a.number - b.number);
+    
+    const std = filtered[index];
+    
+    // Format text
+    const textToCopy = `
+CA ELD STANDARD: ${grade}
+${std.number}. ${std.title} (${std.part} - ${std.mode})
+CCSS Alignment: ${std.ccss_ela || "N/A"}
+
+EMERGING:
+${std.emerging.replace(/<br>/g, '\n')}
+
+EXPANDING:
+${std.expanding.replace(/<br>/g, '\n')}
+
+BRIDGING:
+${std.bridging.replace(/<br>/g, '\n')}
+    `.trim();
+
+    // -- ROBUST COPY LOGIC --
+    // Tries modern API first, falls back to legacy method if secure context is missing
+    try {
+        if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(textToCopy);
+        } else {
+            throw new Error("Clipboard API unavailable");
+        }
+    } catch (err) {
+        // Fallback for non-secure contexts (e.g., local files)
+        const textArea = document.createElement("textarea");
+        textArea.value = textToCopy;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-9999px";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        
+        try {
+            document.execCommand('copy');
+        } catch (err) {
+            console.error('Copy failed', err);
+            btnElement.innerText = "ERROR";
+            return;
+        } finally {
+            document.body.removeChild(textArea);
+        }
+    }
+
+    // Success Feedback UI
+    const originalText = btnElement.innerText;
+    btnElement.innerText = "COPIED!";
+    btnElement.style.background = "#fff";
+    btnElement.style.color = "#000";
+    
+    setTimeout(() => {
+        btnElement.innerText = originalText;
+        btnElement.style.background = "transparent";
+        // Restore color based on row (odd vs even row logic handled in CSS, so we remove inline color)
+        btnElement.style.color = ""; 
+        btnElement.style.background = "";
+    }, 1500);
+}
+
 
 function openSidebar(mode) {
     const sidebar = document.getElementById('sidebar');
@@ -182,5 +257,4 @@ function closeSidebar() {
     document.getElementById('sidebar').classList.remove('active');
 }
 
-// Start
 init();
