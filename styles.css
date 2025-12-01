@@ -21,6 +21,11 @@ a.extras-link {
 	color: var(--text-main);
 }
 
+a.extras-link:hover {
+    color: #fff;
+    text-decoration-color: #fff;
+}
+
 body {
     font-family: 'Segoe UI', Inter, system-ui, -apple-system, sans-serif;
     background-color: var(--bg);
